@@ -293,7 +293,7 @@ class Solver:
         
 if __name__ == "__main__":
     solver = Solver()
-    solver.readFile('newdata.txt')
+    solver.readFile('data.txt')
     solver.setSolvers('PSO')
     solver.solve()
 
