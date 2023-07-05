@@ -1,1 +1,1 @@
-# IntelligentControl_Algotithm
+# IntelligentControl_Algorithm
