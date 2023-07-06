@@ -36,27 +36,98 @@ class SolverGA(SubSolver):
         self.MachineRequired_matrix = MachineRequired_matrix
 
         # 算法可调节参数, 变异率，交叉率
-        self.rateofmutation = 0.1
-        self.rateofcrossover = 0.65
-
+        self.Iteration = 1000
+        self.Population_num = 100
+        self.MutationRate = 0.1
+        self.CrossoverRate = 0.65
+        
         # 初始化参数
         self.init()
 
     ## 特定算法自身数据的初始化
     def init(self):
-        # 初始化粒子群
-        self.Particles = self.particlesInit(self.WorkPiece_num, self.Process_num, self.args['Particle_num'])
-        # 随机速度
-        self.RandomVelocity = [self.randomPairInit(self.WorkPiece_num * self.Process_num, self.args['RandomPair_num']) for _ in range(self.args['Particle_num'])]
         
-        # 初始化粒子最优与粒子群最优，及其对应的解
-        self.pbest = [inf] * self.args['Particle_num']
-        self.gbest = inf
-        self.pbest_solution = self.Particles
-        self.gbest_solution = self.Particles[0]
+        self.Chromosome_length = self.WorkPiece_num * self.Process_num
+
+        # 初始化种群及适应度数组
+        self.Population = self.populationInit()
+        self.Fitness = np.zeros(self.Population_num)
 
         # 用于绘制曲线图
         self.CostHistory = []
+
+    def populationInit(self):
+        # 种群
+        Population = np.zeros((self.Population_num, self.Chromosome_length * 2))
+        for individual in range(self.Population_num):
+            
+            # 第一条染色体，里面是不同工件号，如1出现1次代表1的第一道工序，1出现2次代表1的第二道工序
+            for workpiece_index in range(self.WorkPiece_num):
+                for process in range(self.Process_num):
+                    Population[individual][workpiece_index * self.Process_num + process] = workpiece_index + 1
+            np.random.shuffle(Population[individual][:self.Chromosome_length])
+            
+            '''# 第二条染色体，里面是每道工序对应的每个机器
+            for each_process in range(self.Chromosome_length):
+                index = np.random.randint(0, self.M)
+                while datas[each_process][index] == "-":
+                    index = np.random.randint(0, machine)
+                Population[individual][each_process + self.Chromosome_length] = index + 1'''
+
+            self.Fitness[individual] = self.timeCalculate(self.WorkPiece_num,
+                                                          10,
+                                                          Population[individual],
+                                                          self.TimeCost_matrix,
+                                                          self.MachineRequired_matrix)
+
+        return Population
+
+    def timeCalculate(self, workpiece_num, machine_num, gene, times, schedule):
+            # 每个工件进行到第几道工序以及当前每个机器的结束工作时间
+            processed_id = [0] * workpiece_num
+            machineWorkTime = [0] * machine_num
+            
+            # 全部工件的每到工序的开始结束时间
+            startTime = [[0 for _ in range(machine_num)] for _ in range(workpiece_num)]
+            endTime = [[0 for _ in range(machine_num)] for _ in range(workpiece_num)]
+            
+            final_time = 0
+            for wId in gene:
+                # 依据基因信息，得到当前的需考虑的工件id
+                # 依据当前工件的工序得到处理的机器以及耗时
+                pId = processed_id[wId]
+                processed_id[wId] += 1
+                mId = schedule[wId][pId]
+                t = times[wId][mId]
+                if pId == 0:
+                    startTime[wId][pId] = machineWorkTime[mId]
+                else:
+                    startTime[wId][pId] = max(endTime[wId][pId - 1], machineWorkTime[mId])
+                machineWorkTime[mId] = startTime[wId][pId] + t
+                endTime[wId][pId] = machineWorkTime[mId]
+                final_time = max(final_time, machineWorkTime[mId])
+            return final_time
+    
+
+    def calc(x):
+        Tm = np.zeros(machine)
+        Te = np.zeros((n, m))
+        array = handle(x)
+
+        for i in range(allstep):
+            machine_index = int(x[allstep + (array[i][0] - 1) * m + (array[i][1] - 1)]) - 1
+            process_index = (array[i][0] - 1) * m + (array[i][1] - 1)
+            process_time = int(datas[process_index][machine_index])
+            # 如果是第一道工序
+            if array[i][1] == 1:
+                Tm[machine_index] += process_time
+                Te[array[i][0] - 1][0] = Tm[machine_index]
+            # 不是第一道工序
+            else:
+                Tm[machine_index] = max(Te[array[i][0] - 1][array[i][1] - 2], Tm[machine_index]) + process_time
+                Te[array[i][0] - 1][array[i][1] - 1] = Tm[machine_index]
+        return max(Tm)
+
 
     ## 迭代
     def update(self):
@@ -238,6 +309,27 @@ class SolverPSO(SubSolver):
     def plot(self):
         plt.plot(np.arange(len(self.CostHistory)), self.CostHistory)
         plt.show()
+
+###ACO算法求解###
+class SolverACO(SubSolver):
+    def __init__(self):
+        pass
+
+    ## 特定算法自身数据的初始化
+    def init(self):
+        print("your SubSolver need a init function!")
+
+    ## 迭代
+    def update(self):
+        print("your SubSolver need a update function!")
+
+    ## 一次实验
+    def loop(self):
+        print("your SubSolver need a loop function!")
+
+    ## 绘图
+    def plot(self):
+        print("your SubSolver need a plot function to show your results!")
 
 
 class Solver:
