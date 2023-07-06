@@ -32,8 +32,10 @@ class SolverGA(SubSolver):
         # 数据参数，来自文件
         self.WorkPiece_num = WorkPiece_num
         self.Process_num = Process_num
+        self.Machine_num = 10
         self.TimeCost_matrix = TimeCost_matrix
         self.MachineRequired_matrix = MachineRequired_matrix
+
 
         # 算法可调节参数, 变异率，交叉率
         self.Iteration = 1000
@@ -49,56 +51,46 @@ class SolverGA(SubSolver):
         
         self.Chromosome_length = self.WorkPiece_num * self.Process_num
 
-        # 初始化种群及适应度数组
-        self.Population = self.populationInit()
+        # 初始化种群及适应度
         self.Fitness = np.zeros(self.Population_num)
+        self.Population = self.populationInit()
+        
 
         # 用于绘制曲线图
         self.CostHistory = []
 
     def populationInit(self):
         # 种群
-        Population = np.zeros((self.Population_num, self.Chromosome_length * 2))
+        Population = np.zeros((self.Population_num, self.Chromosome_length), dtype = int)
         for individual in range(self.Population_num):
-            
-            # 第一条染色体，里面是不同工件号，如1出现1次代表1的第一道工序，1出现2次代表1的第二道工序
+            # 基因包括不同工件号，如1出现1次代表1的第一道工序，1出现2次代表1的第二道工序
             for workpiece_index in range(self.WorkPiece_num):
                 for process in range(self.Process_num):
-                    Population[individual][workpiece_index * self.Process_num + process] = workpiece_index + 1
+                    Population[individual][workpiece_index * self.Process_num + process] = workpiece_index
+            # 打乱
             np.random.shuffle(Population[individual][:self.Chromosome_length])
-            
-            '''# 第二条染色体，里面是每道工序对应的每个机器
-            for each_process in range(self.Chromosome_length):
-                index = np.random.randint(0, self.M)
-                while datas[each_process][index] == "-":
-                    index = np.random.randint(0, machine)
-                Population[individual][each_process + self.Chromosome_length] = index + 1'''
-
-            self.Fitness[individual] = self.timeCalculate(self.WorkPiece_num,
-                                                          10,
-                                                          Population[individual],
-                                                          self.TimeCost_matrix,
-                                                          self.MachineRequired_matrix)
-
+            # 计算适应度
+            self.Fitness[individual] = self.timeCalculate(Population[individual])
         return Population
 
-    def timeCalculate(self, workpiece_num, machine_num, gene, times, schedule):
+    def timeCalculate(self, gene):
             # 每个工件进行到第几道工序以及当前每个机器的结束工作时间
-            processed_id = [0] * workpiece_num
-            machineWorkTime = [0] * machine_num
+            processed_id = [0] * self.WorkPiece_num
+            machineWorkTime = [0] * self.Machine_num
             
             # 全部工件的每到工序的开始结束时间
-            startTime = [[0 for _ in range(machine_num)] for _ in range(workpiece_num)]
-            endTime = [[0 for _ in range(machine_num)] for _ in range(workpiece_num)]
+            startTime = [[0 for _ in range(self.Machine_num)] for _ in range(self.WorkPiece_num)]
+            endTime = [[0 for _ in range(self.Machine_num)] for _ in range(self.WorkPiece_num)]
             
             final_time = 0
+            
             for wId in gene:
                 # 依据基因信息，得到当前的需考虑的工件id
                 # 依据当前工件的工序得到处理的机器以及耗时
                 pId = processed_id[wId]
                 processed_id[wId] += 1
-                mId = schedule[wId][pId]
-                t = times[wId][mId]
+                mId = self.MachineRequired_matrix[wId][pId]
+                t = self.TimeCost_matrix[wId][mId]
                 if pId == 0:
                     startTime[wId][pId] = machineWorkTime[mId]
                 else:
@@ -108,38 +100,95 @@ class SolverGA(SubSolver):
                 final_time = max(final_time, machineWorkTime[mId])
             return final_time
     
+    def crossoverAndMutation(self):
+        NextPopulations = np.zeros((self.Population_num, self.Chromosome_length), dtype = int)
+        # 对每一个个体
+        for individual in range(self.Population_num):
+            # 自身作为第一个父代
+            father1 = self.Population[individual]
+            # 交叉
+            if np.random.random() < self.CrossoverRate:
+                # 随机选取另一个个体作为第二个父代
+                father2 = self.Population[np.random.randint(self.Population_num)]
+                
+                seq = [j for j in range(self.WorkPiece_num)]
+                random_length = np.random.randint(2, len(seq) - 1)
+                set1 = set()
 
-    def calc(x):
-        Tm = np.zeros(machine)
-        Te = np.zeros((n, m))
-        array = handle(x)
+                # 取random_length个工件到set1里
+                for _ in range(random_length):
+                    index = np.random.randint(0, len(seq))
+                    set1.add(seq[index])
+                    seq.pop(index)
 
-        for i in range(allstep):
-            machine_index = int(x[allstep + (array[i][0] - 1) * m + (array[i][1] - 1)]) - 1
-            process_index = (array[i][0] - 1) * m + (array[i][1] - 1)
-            process_time = int(datas[process_index][machine_index])
-            # 如果是第一道工序
-            if array[i][1] == 1:
-                Tm[machine_index] += process_time
-                Te[array[i][0] - 1][0] = Tm[machine_index]
-            # 不是第一道工序
+                # 其余工件放到set2里
+                set2 = set(seq)
+
+                # 生成两个子代
+                child1 = np.copy(father1)
+                child2 = np.copy(father2)
+                
+                # 找到set2中有的工件在两个子代中的位序
+                remain1 = [i for i in range(self.Chromosome_length) if father1[i] in set2]
+                remain2 = [i for i in range(self.Chromosome_length) if father2[i] in set2]
+                
+                cursor1, cursor2 = 0, 0
+                for k in range(self.Chromosome_length):
+                    if father2[k] in set2:
+                        child1[remain1[cursor1]] = father2[k]
+                        cursor1 += 1
+                    if father1[k] in set2:
+                        child2[remain2[cursor2]] = father1[k]
+                        cursor2 += 1
+                
+                child1 = self.mutation(child1)
+                child2 = self.mutation(child2)
+                if self.timeCalculate(child1) < self.timeCalculate(child2):
+                    child = child1
+                else:
+                    child = child2
             else:
-                Tm[machine_index] = max(Te[array[i][0] - 1][array[i][1] - 2], Tm[machine_index]) + process_time
-                Te[array[i][0] - 1][array[i][1] - 1] = Tm[machine_index]
-        return max(Tm)
+                child = father1
+            NextPopulations[individual] = child
+        return NextPopulations
 
+    def mutation(self, child):
+        # 如果变异，就任意交换两位
+        if np.random.rand() < self.MutationRate:
+            index = np.random.randint(self.Chromosome_length, size=2)
+            child[index[0]], child[index[1]] = child[index[1]], child[index[0]]
+        return child
+
+    def choseNextPopulation(self, NewPopulation):
+        # 根据适应度选择了种群个数个基因
+        fitness_sum = 0
+        for i in range(self.Population_num):
+            self.Fitness[i] = self.timeCalculate(NewPopulation[i])
+            fitness_sum = fitness_sum + 1 / self.Fitness[i]
+        idx = np.random.choice(np.arange(self.Population_num), size=self.Population_num, replace=True, p=1 / self.Fitness / fitness_sum)
+        return NewPopulation[idx]
 
     ## 迭代
     def update(self):
-        print("your SubSolver need a update function!")
+        new_population = self.crossoverAndMutation()
+        new_population = self.choseNextPopulation(new_population)
+        self.Population = new_population
+        self.CostHistory.append(min(self.Fitness))
+        print()
 
     ## 一次实验
     def loop(self):
-        print("your SubSolver need a loop function!")
+        # 设定随机种子，保证实验可重复性
+        random.seed(20)
+        np.random.seed(20)
+        for iter in range(self.Iteration):
+            print("Iteration", iter, ":", min(self.Fitness))
+            self.update()
 
     ## 绘图
     def plot(self):
-        print("your SubSolver need a plot function to show your results!")
+        plt.plot(np.arange(len(self.CostHistory)), self.CostHistory)
+        plt.show()
 
 
 ###PSO算法求解###
@@ -376,6 +425,8 @@ class Solver:
     def setSolvers(self, solvers):
         if(solvers == 'PSO'):
             self.SubSolver = SolverPSO(self.WorkPiece_num, self.Process_num, self.TimeCost_matrix, self.MachineRequired_matrix)
+        elif(solvers == 'GA'):
+            self.SubSolver = SolverGA(self.WorkPiece_num, self.Process_num, self.TimeCost_matrix, self.MachineRequired_matrix)
         else:
             print("Solver should be GA\PSO\ACA!")
 
@@ -384,9 +435,16 @@ class Solver:
         self.SubSolver.plot()
         
 if __name__ == "__main__":
+    # 使用PSO
+    #solver = Solver()
+    #solver.readFile('data.txt')
+    #solver.setSolvers('PSO')
+    #solver.solve()
+
+    # 使用GA
     solver = Solver()
     solver.readFile('data.txt')
-    solver.setSolvers('PSO')
+    solver.setSolvers('GA')
     solver.solve()
 
 
