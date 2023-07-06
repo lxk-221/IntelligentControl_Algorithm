@@ -28,7 +28,7 @@ class SubSolver:
 
 ###GA算法求解###
 class SolverGA(SubSolver):
-    def __init__(self, WorkPiece_num, Process_num, TimeCost_matrix, MachineRequired_matrix):
+    def __init__(self, WorkPiece_num, Process_num, TimeCost_matrix, MachineRequired_matrix, RandomSeed = None):
         # 数据参数，来自文件
         self.WorkPiece_num = WorkPiece_num
         self.Process_num = Process_num
@@ -36,6 +36,15 @@ class SolverGA(SubSolver):
         self.TimeCost_matrix = TimeCost_matrix
         self.MachineRequired_matrix = MachineRequired_matrix
 
+        # 记录最优解, 用于绘制甘特图
+        self.best_solution = None
+
+        # 设定随机种子，保证实验可重复性
+        self.RandomSeed = None
+        if(RandomSeed != None):
+            self.RandomSeed = RandomSeed
+            random.seed(self.RandomSeed)
+            np.random.seed(self.RandomSeed)
 
         # 算法可调节参数, 变异率，交叉率
         self.Iteration = 1000
@@ -43,12 +52,10 @@ class SolverGA(SubSolver):
         self.MutationRate = 0.1
         self.CrossoverRate = 0.65
         
-        # 初始化参数
-        self.init()
-
+        
     ## 特定算法自身数据的初始化
     def init(self):
-        
+        # 染色体长度
         self.Chromosome_length = self.WorkPiece_num * self.Process_num
 
         # 初始化种群及适应度
@@ -178,12 +185,18 @@ class SolverGA(SubSolver):
 
     ## 一次实验
     def loop(self):
-        # 设定随机种子，保证实验可重复性
-        random.seed(20)
-        np.random.seed(20)
+        
+        # 初始化参数
+        self.init()
+
         for iter in range(self.Iteration):
             print("Iteration", iter, ":", min(self.Fitness))
             self.update()
+
+        if(self.RandomSeed != None):
+            print("RandomSeed is:", self.RandomSeed)
+            print("Best solution is:", min(self.CostHistory))
+        
 
     ## 绘图
     def plot(self):
@@ -203,10 +216,13 @@ class SolverPSO(SubSolver):
         # 算法可调节参数，迭代次数、粒子群粒子数量、随机交换对的数量、学习率、最大交换数量、随机种子（保证可重复性）
         self.args = {'Iteration': 500, 'Particle_num': 100, 'RandomPair_num': 5, 'alpha': 0.45, 'MaxPair_num': 10, 'RandomSeed': 100, }
 
+        # 设定随机种子，保证实验可重复性
+        #random.seed(self.args['RandomSeed'])
+        #np.random.seed(self.args['RandomSeed'])
+
         # 初始化参数
         self.init()
 
-    ##
     def init(self):
         # 初始化粒子群
         self.Particles = self.particlesInit(self.WorkPiece_num, self.Process_num, self.args['Particle_num'])
@@ -347,39 +363,254 @@ class SolverPSO(SubSolver):
             x[p_x], x[p_y] = x[p_y], x[p_x]
 
     def loop(self):
-        # 设定随机种子，保证实验可重复性
-        #random.seed(self.args['RandomSeed'])
-        #np.random.seed(self.args['RandomSeed'])
-
         for iter in range(self.args['Iteration']):
-            print("Iteration ", iter, ":")
+            #print("Iteration ", iter, ":")
             self.update()
 
     def plot(self):
         plt.plot(np.arange(len(self.CostHistory)), self.CostHistory)
         plt.show()
 
-###ACO算法求解###
-class SolverACO(SubSolver):
-    def __init__(self):
-        pass
+###AIA算法求解###
+class SolverAIA(SubSolver):
+    def __init__(self, WorkPiece_num, Process_num, TimeCost_matrix, MachineRequired_matrix, RandomSeed = None):
+        # 数据参数，来自文件
+        self.WorkPiece_num = WorkPiece_num
+        self.Process_num = Process_num
+        self.Machine_num = 10
+        self.TimeCost_matrix = TimeCost_matrix
+        self.MachineRequired_matrix = MachineRequired_matrix
 
+        # 记录最优解, 用于绘制甘特图
+        self.best_solution = None
+
+        # 设定随机种子，保证实验可重复性
+        self.RandomSeed = None
+        if(RandomSeed != None):
+            self.RandomSeed = RandomSeed
+            random.seed(self.RandomSeed)
+            np.random.seed(self.RandomSeed)
+
+        # 算法可调节参数，迭代次数，抗体数量，换位率，移位率，逆转率，重组率
+        self.Iteration = 10000
+        
+        self.Population_num = 100
+        
+        self.SwitchRate = 0.8
+        self.ShiftRate = 0.8
+        self.InverseRate = 0.8
+        self.RegroupRate = 0.8
+        
+        
     ## 特定算法自身数据的初始化
     def init(self):
-        print("your SubSolver need a init function!")
+        # 抗体长度
+        self.Antibody_length = self.WorkPiece_num * self.Process_num
+
+        # 初始化种群及适应度
+        self.Fitness = np.zeros(self.Population_num)
+        self.Population = self.populationInit()
+        
+        # 用于绘制曲线图
+        self.CostHistory = []
+
+    def populationInit(self):
+        # 抗体种群
+        Population = np.zeros((self.Population_num, self.Antibody_length), dtype = int)
+        for individual in range(self.Population_num):
+            # 抗体包括不同工件号，如1出现1次代表1的第一道工序，1出现2次代表1的第二道工序
+            for workpiece_index in range(self.WorkPiece_num):
+                for process in range(self.Process_num):
+                    Population[individual][workpiece_index * self.Process_num + process] = workpiece_index
+            # 打乱
+            np.random.shuffle(Population[individual][:self.Antibody_length])
+            # 计算适应度
+            self.Fitness[individual] = self.timeCalculate(Population[individual])
+        return Population
+
+    def timeCalculate(self, gene):
+            # 每个工件进行到第几道工序以及当前每个机器的结束工作时间
+            processed_id = [0] * self.WorkPiece_num
+            machineWorkTime = [0] * self.Machine_num
+            
+            # 全部工件的每到工序的开始结束时间
+            startTime = [[0 for _ in range(self.Machine_num)] for _ in range(self.WorkPiece_num)]
+            endTime = [[0 for _ in range(self.Machine_num)] for _ in range(self.WorkPiece_num)]
+            
+            final_time = 0
+            
+            for wId in gene:
+                # 依据抗体信息，得到当前的需考虑的工件id
+                # 依据当前工件的工序得到处理的机器以及耗时
+                pId = processed_id[wId]
+                processed_id[wId] += 1
+                mId = self.MachineRequired_matrix[wId][pId]
+                t = self.TimeCost_matrix[wId][mId]
+                if pId == 0:
+                    startTime[wId][pId] = machineWorkTime[mId]
+                else:
+                    startTime[wId][pId] = max(endTime[wId][pId - 1], machineWorkTime[mId])
+                machineWorkTime[mId] = startTime[wId][pId] + t
+                endTime[wId][pId] = machineWorkTime[mId]
+                final_time = max(final_time, machineWorkTime[mId])
+            return final_time
+    
+    def generateNewAntiBodys(self):
+        NewAntiBodys = []
+
+        # 对每一个抗体
+        for antibody in self.Population:
+            antibody = self.switch(antibody)
+            antibody = self.shift(antibody)
+            antibody = self.inverse(antibody)
+            antibody = self.regroup(antibody)
+            
+            NewAntiBodys.append(antibody)
+
+        return NewAntiBodys
+
+    def switch(self, antibody):
+        # 换位
+        if np.random.rand() < self.SwitchRate:
+            # 变化多少对，最多选取int(self.Antibody_length/4)对
+            switch_num = np.random.randint(int(self.Antibody_length/4), size=1)[0]
+            index = np.random.randint(self.Antibody_length, size=2*switch_num)
+            
+            # 对每一对进行交换
+            for i in range(switch_num):
+                antibody[index[2*i]], antibody[index[2*i+1]] = antibody[index[2*i+1]], antibody[index[2*i]]
+
+        return antibody
+
+    def shift(self, antibody):
+        # 移位多少段，最多选取int(self.Antibody_length/10)对
+        shift_num = np.random.randint(int(self.Antibody_length/10), size=1)[0]
+        index = np.random.randint(self.Antibody_length, size=2*shift_num)
+        if np.random.rand() < self.ShiftRate:
+            # 对每一段进行移位
+            for i in range(shift_num):
+                if index[2*i] == index[2*i+1]:
+                    continue
+                
+                if index[2*i] < index[2*i+1]:
+                    smaller_index = index[2*i]
+                    bigger_index = index[2*i+1]
+                else:
+                    smaller_index = index[2*i+1]
+                    bigger_index = index[2*i]
+                # 移动一位
+                antibody[smaller_index : bigger_index] = np.roll(antibody[smaller_index : bigger_index], 1)
+
+        return antibody
+    
+    def inverse(self, antibody):
+        # 翻转多少段，最多选取int(self.Antibody_length/10)对
+        inverse_num = np.random.randint(int(self.Antibody_length/10), size=1)[0]
+        index = np.random.randint(self.Antibody_length, size=2*inverse_num)
+        if np.random.rand() < self.ShiftRate:
+            # 对每一段进行翻转
+            for i in range(inverse_num):
+                if index[2*i] == index[2*i+1]:
+                    continue
+                
+                if index[2*i] < index[2*i+1]:
+                    smaller_index = index[2*i]
+                    bigger_index = index[2*i+1]
+                else:
+                    smaller_index = index[2*i+1]
+                    bigger_index = index[2*i]
+                # 翻转
+                antibody[smaller_index : bigger_index] = np.flip(antibody[smaller_index : bigger_index])
+        
+        return antibody
+    
+    def regroup(self, antibody):
+        # 重组多少段，最多选取int(self.Antibody_length/10)对
+        regroup_num = np.random.randint(int(self.Antibody_length/10), size=1)[0]
+        index = np.random.randint(self.Antibody_length, size=2*regroup_num)
+        if np.random.rand() < self.ShiftRate:
+            # 对每一段进行重组
+            for i in range(regroup_num):
+                if index[2*i] == index[2*i+1]:
+                    continue
+                
+                if index[2*i] < index[2*i+1]:
+                    smaller_index = index[2*i]
+                    bigger_index = index[2*i+1]
+                else:
+                    smaller_index = index[2*i+1]
+                    bigger_index = index[2*i]
+                
+                # 重组
+                antibody_segment = antibody[smaller_index : bigger_index]
+                np.random.shuffle(antibody_segment) # shuffle返回值为None
+                antibody[smaller_index : bigger_index] = antibody_segment
+        
+        return antibody
+
+    def choseNextPopulation(self, NewPopulation):
+        # 选择较好的抗体
+        
+        reserve_num = int(self.Population_num/10)
+
+        # 旧抗体的匹配度
+        temp_fitness = self.Fitness
+        # 新抗体的匹配度
+        for i in range(len(NewPopulation)):
+            temp_fitness = np.append(temp_fitness, self.timeCalculate(NewPopulation[i]))
+        
+        sort_index = np.argsort(temp_fitness)
+        
+        # 最终选择的抗体的下标集合
+        chossed_index = []
+        for temp_index in sort_index[:reserve_num]:
+            chossed_index.append(temp_index)
+
+        fitness_sum = np.sum(1/temp_fitness)
+        idx = np.random.choice(np.arange(self.Population_num + len(NewPopulation)),
+                               size=self.Population_num - reserve_num,
+                               replace=True,
+                               p=1 / temp_fitness / fitness_sum)
+        chossed_index = np.concatenate((chossed_index, idx)) 
+
+        save_Population = []
+        save_fitness = []
+
+        for new_population_index in range(self.Population_num):
+            if(chossed_index[new_population_index] < self.Population_num):
+                save_Population.append(self.Population[chossed_index[new_population_index]])
+            else:
+                save_Population.append(NewPopulation[chossed_index[new_population_index]-self.Population_num])
+            save_fitness.append(temp_fitness[chossed_index[new_population_index]])
+        
+        self.Population = save_Population
+        self.Fitness = save_fitness
 
     ## 迭代
     def update(self):
-        print("your SubSolver need a update function!")
+        new_population = self.generateNewAntiBodys()
+        self.choseNextPopulation(new_population)
+        self.CostHistory.append(min(self.Fitness))
 
     ## 一次实验
     def loop(self):
-        print("your SubSolver need a loop function!")
+        
+        # 初始化参数
+        self.init()
+
+        for iter in range(self.Iteration):
+            print("Iteration", iter, ":", min(self.Fitness))
+            self.update()
+
+        if(self.RandomSeed != None):
+            print("RandomSeed is:", self.RandomSeed)
+            print("Best solution is:", min(self.CostHistory))
+        
 
     ## 绘图
     def plot(self):
-        print("your SubSolver need a plot function to show your results!")
-
+        plt.plot(np.arange(len(self.CostHistory)), self.CostHistory)
+        plt.show()
 
 class Solver:
     def __init__(self):
@@ -422,11 +653,13 @@ class Solver:
         self.TimeCost_matrix = tis
         self.MachineRequired_matrix = sch
 
-    def setSolvers(self, solvers):
+    def setSolvers(self, solvers, RandomSeed = None):
         if(solvers == 'PSO'):
             self.SubSolver = SolverPSO(self.WorkPiece_num, self.Process_num, self.TimeCost_matrix, self.MachineRequired_matrix)
         elif(solvers == 'GA'):
-            self.SubSolver = SolverGA(self.WorkPiece_num, self.Process_num, self.TimeCost_matrix, self.MachineRequired_matrix)
+            self.SubSolver = SolverGA(self.WorkPiece_num, self.Process_num, self.TimeCost_matrix, self.MachineRequired_matrix, RandomSeed)
+        elif(solvers == 'AIA'):
+            self.SubSolver = SolverAIA(self.WorkPiece_num, self.Process_num, self.TimeCost_matrix, self.MachineRequired_matrix, RandomSeed)
         else:
             print("Solver should be GA\PSO\ACA!")
 
@@ -442,9 +675,13 @@ if __name__ == "__main__":
     #solver.solve()
 
     # 使用GA
+    #solver = Solver()
+    #solver.readFile('data.txt')
+    #solver.setSolvers('GA')
+    #solver.solve()
+
+    # 使用AIA
     solver = Solver()
     solver.readFile('data.txt')
-    solver.setSolvers('GA')
+    solver.setSolvers('AIA')
     solver.solve()
-
-
