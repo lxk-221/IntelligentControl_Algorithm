@@ -6,7 +6,20 @@ from math import *
 import matplotlib.pyplot as plt
 
 class SubSolver:
-    def __init__(self):
+    def __init__(self, WorkPiece_num, Process_num, TimeCost_matrix, MachineRequired_matrix, RandomSeed = None):
+        # 数据参数，来自文件
+        self.WorkPiece_num = WorkPiece_num
+        self.Process_num = Process_num
+        self.Machine_num = 10
+        self.TimeCost_matrix = TimeCost_matrix
+        self.MachineRequired_matrix = MachineRequired_matrix
+
+        self.RandomSeed = RandomSeed
+
+        # 记录最优解, 用于绘制甘特图
+        self.best_cost = inf
+        self.best_solution = None
+
         pass
 
     ## 特定算法自身数据的初始化
@@ -36,13 +49,14 @@ class SolverGA(SubSolver):
         self.TimeCost_matrix = TimeCost_matrix
         self.MachineRequired_matrix = MachineRequired_matrix
 
+        self.RandomSeed = RandomSeed
+
         # 记录最优解, 用于绘制甘特图
+        self.best_cost = inf
         self.best_solution = None
 
         # 设定随机种子，保证实验可重复性
-        self.RandomSeed = None
-        if(RandomSeed != None):
-            self.RandomSeed = RandomSeed
+        if(self.RandomSeed != None):
             random.seed(self.RandomSeed)
             np.random.seed(self.RandomSeed)
 
@@ -51,8 +65,7 @@ class SolverGA(SubSolver):
         self.Population_num = 100
         self.MutationRate = 0.1
         self.CrossoverRate = 0.65
-        
-        
+              
     ## 特定算法自身数据的初始化
     def init(self):
         # 染色体长度
@@ -168,20 +181,51 @@ class SolverGA(SubSolver):
 
     def choseNextPopulation(self, NewPopulation):
         # 根据适应度选择了种群个数个基因
-        fitness_sum = 0
-        for i in range(self.Population_num):
-            self.Fitness[i] = self.timeCalculate(NewPopulation[i])
-            fitness_sum = fitness_sum + 1 / self.Fitness[i]
-        idx = np.random.choice(np.arange(self.Population_num), size=self.Population_num, replace=True, p=1 / self.Fitness / fitness_sum)
-        return NewPopulation[idx]
+        # 选择较好的抗体
+        
+        reserve_num = int(self.Population_num/100)
+
+        # 旧抗体的匹配度
+        temp_fitness = self.Fitness
+        # 新抗体的匹配度
+        for i in range(len(NewPopulation)):
+            temp_fitness = np.append(temp_fitness, self.timeCalculate(NewPopulation[i]))
+        
+        sort_index = np.argsort(temp_fitness)
+        
+        # 最终选择的抗体的下标集合
+        chossed_index = []
+        for temp_index in sort_index[:reserve_num]:
+            chossed_index.append(temp_index)
+
+        fitness_sum = np.sum(1/temp_fitness)
+        idx = np.random.choice(np.arange(self.Population_num + len(NewPopulation)),
+                               size=self.Population_num - reserve_num,
+                               replace=True,
+                               p=1 / temp_fitness / fitness_sum)
+        chossed_index = np.concatenate((chossed_index, idx)) 
+
+        save_Population = []
+        save_fitness = []
+
+        for new_population_index in range(self.Population_num):
+            if(chossed_index[new_population_index] < self.Population_num):
+                save_Population.append(self.Population[chossed_index[new_population_index]])
+            else:
+                save_Population.append(NewPopulation[chossed_index[new_population_index]-self.Population_num])
+            save_fitness.append(temp_fitness[chossed_index[new_population_index]])
+        
+        self.Population = save_Population
+        self.Fitness = save_fitness
 
     ## 迭代
     def update(self):
         new_population = self.crossoverAndMutation()
-        new_population = self.choseNextPopulation(new_population)
-        self.Population = new_population
+        self.choseNextPopulation(new_population)
         self.CostHistory.append(min(self.Fitness))
-        print()
+        if(np.min(self.Fitness) < self.best_cost):
+            self.best_solution = self.Population[np.argmin(self.Fitness)]
+            self.best_cost = np.min(self.Fitness)
 
     ## 一次实验
     def loop(self):
@@ -196,29 +240,114 @@ class SolverGA(SubSolver):
         if(self.RandomSeed != None):
             print("RandomSeed is:", self.RandomSeed)
             print("Best solution is:", min(self.CostHistory))
-        
+
+        print("self.best_solution:", self.best_solution)    
 
     ## 绘图
     def plot(self):
         plt.plot(np.arange(len(self.CostHistory)), self.CostHistory)
         plt.show()
+        
+        self.getGanttData(self.best_solution)
+        fig, ax = plt.subplots()
+        # 不同工件的颜色
+        color = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple',
+                 'tab:brown', 'tab:pink','tab:gray', 'tab:olive', 'tab:cyan']
+        ax.set_xlim(0, 1300)
+        y_para1 = []
+        y_para2 = []
+        for machine_index in range(self.Machine_num):
+            
+            y_para1.append(15*(machine_index + 1))
+            y_para2.append('Machine' + str(machine_index))
+            
+            x_para1 = []
+            x_para2 = (15*(machine_index + 1) - 5, 10)
+            x_para3 = []
+            # time_interval 是增量的形式
+            for time_interval, work_piece_id in self.WorkOnMachines[machine_index]:
+                print("time_interval:",time_interval)
+                x_para1.append(time_interval)
+                x_para3.append(color[work_piece_id])
+                #ax.broken_barh([time_interval], (15*(machine_index + 1) - 5, 10), facecolors=(color[work_piece_id]),
+                #               edgecolor='black', linewidth=1)
 
+            x_para3 = tuple(x_para3)
+            print("x_para1:", x_para1)
+            print("x_para2:", x_para2)
+            print("x_para3:", x_para3)
+            ax.broken_barh(x_para1, x_para2, facecolors=x_para3,
+                           edgecolor='black', linewidth=1)
+        #print("self.WorkOnMachines:", self.WorkOnMachines)
+        ax.set_yticks(y_para1, labels=y_para2)
+        
+        # 更改y轴记号标签
+        #ax.set_yticks([15, 25], labels=['A01', 'A02'])
+        
+        # 设置条形数据
+        #ax.broken_barh([(110, 30), (150, 10)], (10, 9), facecolors='tab:blue')
+        
+        #ax.broken_barh([(10, 50), (100, 20), (130, 10)], (20, 9), facecolors=(color[0], color[1], color[2]))
+        plt.show()
+
+    def getGanttData(self, one_solution):
+        # 每个工件进行到第几道工序以及当前每个机器的结束工作时间
+            self.WorkOnMachines = [[]] * self.Machine_num
+            
+
+            processed_id = [0] * self.WorkPiece_num
+            machineWorkTime = [0] * self.Machine_num
+            
+            # 全部工件的每到工序的开始结束时间
+            startTime = [[0 for _ in range(self.Machine_num)] for _ in range(self.WorkPiece_num)]
+            endTime = [[0 for _ in range(self.Machine_num)] for _ in range(self.WorkPiece_num)]
+            
+            final_time = 0
+            
+            for wId in one_solution:
+                # 依据信息，得到当前的需考虑的工件id
+                # 依据当前工件的工序得到处理的机器以及耗时
+                pId = processed_id[wId]
+                processed_id[wId] += 1
+                mId = self.MachineRequired_matrix[wId][pId]
+                t = self.TimeCost_matrix[wId][mId]
+                if pId == 0:
+                    startTime[wId][pId] = machineWorkTime[mId]
+                else:
+                    startTime[wId][pId] = max(endTime[wId][pId - 1], machineWorkTime[mId])
+                machineWorkTime[mId] = startTime[wId][pId] + t
+                endTime[wId][pId] = machineWorkTime[mId]
+                final_time = max(final_time, machineWorkTime[mId])
+
+                # 如果某一机器还没添加时间节点及对应工件号，则初始化
+                if(self.WorkOnMachines[mId] == []):
+                    self.WorkOnMachines[mId] = [ ((startTime[wId][pId],endTime[wId][pId]-startTime[wId][pId]), wId) ]
+                else:
+                    self.WorkOnMachines[mId].append( ((startTime[wId][pId],endTime[wId][pId]-startTime[wId][pId]), wId) )
 
 ###PSO算法求解###
 class SolverPSO(SubSolver):
-    def __init__(self, WorkPiece_num, Process_num, TimeCost_matrix, MachineRequired_matrix):
+    def __init__(self, WorkPiece_num, Process_num, TimeCost_matrix, MachineRequired_matrix, RandomSeed = None):
         # 数据参数，来自文件
         self.WorkPiece_num = WorkPiece_num
         self.Process_num = Process_num
+        self.Machine_num = 10
         self.TimeCost_matrix = TimeCost_matrix
         self.MachineRequired_matrix = MachineRequired_matrix
 
-        # 算法可调节参数，迭代次数、粒子群粒子数量、随机交换对的数量、学习率、最大交换数量、随机种子（保证可重复性）
-        self.args = {'Iteration': 500, 'Particle_num': 100, 'RandomPair_num': 5, 'alpha': 0.45, 'MaxPair_num': 10, 'RandomSeed': 100, }
+        self.RandomSeed = RandomSeed
+
+        # 记录最优解, 用于绘制甘特图
+        self.best_cost = inf
+        self.best_solution = None
 
         # 设定随机种子，保证实验可重复性
-        #random.seed(self.args['RandomSeed'])
-        #np.random.seed(self.args['RandomSeed'])
+        if(self.RandomSeed != None):
+            random.seed(self.RandomSeed)
+            np.random.seed(self.RandomSeed)
+
+        # 算法可调节参数，迭代次数、粒子群粒子数量、随机交换对的数量、学习率、最大交换数量、随机种子（保证可重复性）
+        self.args = {'Iteration': 500, 'Particle_num': 100, 'RandomPair_num': 5, 'alpha': 0.45, 'MaxPair_num': 10, 'RandomSeed': 100, }
 
         # 初始化参数
         self.init()
@@ -290,7 +419,9 @@ class SolverPSO(SubSolver):
 
         # 储存并输出
         self.CostHistory.append(self.gbest)
-        print("self.gbest", self.gbest)
+        if(gbest < self.best_cost):
+            self.best_solution = self.Particles[gbest_idx]
+            self.best_cost = gbest
 
         # 更新粒子群
         for particle_index in range(self.args['Particle_num']):
@@ -364,12 +495,90 @@ class SolverPSO(SubSolver):
 
     def loop(self):
         for iter in range(self.args['Iteration']):
-            #print("Iteration ", iter, ":")
+            print("Iteration", iter, ":", self.best_cost)
             self.update()
 
+    ## 绘图
     def plot(self):
         plt.plot(np.arange(len(self.CostHistory)), self.CostHistory)
         plt.show()
+
+        self.getGanttData(self.gbest_solution)
+        fig, ax = plt.subplots()
+        # 不同工件的颜色
+        color = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple',
+                 'tab:brown', 'tab:pink','tab:gray', 'tab:olive', 'tab:cyan']
+        ax.set_xlim(0, 1300)
+        y_para1 = []
+        y_para2 = []
+        for machine_index in range(self.Machine_num):
+            
+            y_para1.append(15*(machine_index + 1))
+            y_para2.append('Machine' + str(machine_index))
+            
+            x_para1 = []
+            x_para2 = (15*(machine_index + 1) - 5, 10)
+            x_para3 = []
+            # time_interval 是增量的形式
+            for time_interval, work_piece_id in self.WorkOnMachines[machine_index]:
+                #print("time_interval:",time_interval)
+                x_para1.append(time_interval)
+                x_para3.append(color[work_piece_id])
+                #ax.broken_barh([time_interval], (15*(machine_index + 1) - 5, 10), facecolors=(color[work_piece_id]),
+                #               edgecolor='black', linewidth=1)
+
+            x_para3 = tuple(x_para3)
+            #print("x_para1:", x_para1)
+            #print("x_para2:", x_para2)
+            #print("x_para3:", x_para3)
+            ax.broken_barh(x_para1, x_para2, facecolors=x_para3,
+                           edgecolor='black', linewidth=1)
+        #print("self.WorkOnMachines:", self.WorkOnMachines)
+        ax.set_yticks(y_para1, labels=y_para2)
+        
+        # 更改y轴记号标签
+        #ax.set_yticks([15, 25], labels=['A01', 'A02'])
+        
+        # 设置条形数据
+        #ax.broken_barh([(110, 30), (150, 10)], (10, 9), facecolors='tab:blue')
+        
+        #ax.broken_barh([(10, 50), (100, 20), (130, 10)], (20, 9), facecolors=(color[0], color[1], color[2]))
+        plt.show()
+
+    def getGanttData(self, one_solution):
+        # 每个工件进行到第几道工序以及当前每个机器的结束工作时间
+            self.WorkOnMachines = [[]] * self.Machine_num
+            
+
+            processed_id = [0] * self.WorkPiece_num
+            machineWorkTime = [0] * self.Machine_num
+            
+            # 全部工件的每到工序的开始结束时间
+            startTime = [[0 for _ in range(self.Machine_num)] for _ in range(self.WorkPiece_num)]
+            endTime = [[0 for _ in range(self.Machine_num)] for _ in range(self.WorkPiece_num)]
+            
+            final_time = 0
+            
+            for wId in one_solution:
+                # 依据信息，得到当前的需考虑的工件id
+                # 依据当前工件的工序得到处理的机器以及耗时
+                pId = processed_id[wId]
+                processed_id[wId] += 1
+                mId = self.MachineRequired_matrix[wId][pId]
+                t = self.TimeCost_matrix[wId][mId]
+                if pId == 0:
+                    startTime[wId][pId] = machineWorkTime[mId]
+                else:
+                    startTime[wId][pId] = max(endTime[wId][pId - 1], machineWorkTime[mId])
+                machineWorkTime[mId] = startTime[wId][pId] + t
+                endTime[wId][pId] = machineWorkTime[mId]
+                final_time = max(final_time, machineWorkTime[mId])
+
+                # 如果某一机器还没添加时间节点及对应工件号，则初始化
+                if(self.WorkOnMachines[mId] == []):
+                    self.WorkOnMachines[mId] = [ ((startTime[wId][pId],endTime[wId][pId]-startTime[wId][pId]), wId) ]
+                else:
+                    self.WorkOnMachines[mId].append( ((startTime[wId][pId],endTime[wId][pId]-startTime[wId][pId]), wId) )
 
 ###AIA算法求解###
 class SolverAIA(SubSolver):
@@ -381,18 +590,19 @@ class SolverAIA(SubSolver):
         self.TimeCost_matrix = TimeCost_matrix
         self.MachineRequired_matrix = MachineRequired_matrix
 
+        self.RandomSeed = RandomSeed
+        
         # 记录最优解, 用于绘制甘特图
+        self.best_cost = inf
         self.best_solution = None
 
         # 设定随机种子，保证实验可重复性
-        self.RandomSeed = None
-        if(RandomSeed != None):
-            self.RandomSeed = RandomSeed
+        if(self.RandomSeed != None):
             random.seed(self.RandomSeed)
             np.random.seed(self.RandomSeed)
 
         # 算法可调节参数，迭代次数，抗体数量，换位率，移位率，逆转率，重组率
-        self.Iteration = 10000
+        self.Iteration = 1000
         
         self.Population_num = 100
         
@@ -551,7 +761,7 @@ class SolverAIA(SubSolver):
     def choseNextPopulation(self, NewPopulation):
         # 选择较好的抗体
         
-        reserve_num = int(self.Population_num/10)
+        reserve_num = int(self.Population_num/50)
 
         # 旧抗体的匹配度
         temp_fitness = self.Fitness
@@ -591,6 +801,9 @@ class SolverAIA(SubSolver):
         new_population = self.generateNewAntiBodys()
         self.choseNextPopulation(new_population)
         self.CostHistory.append(min(self.Fitness))
+        if(np.min(self.Fitness) < self.best_cost):
+            self.best_solution = self.Population[np.argmin(self.Fitness)]
+            self.best_cost = np.min(self.Fitness)
 
     ## 一次实验
     def loop(self):
@@ -606,11 +819,87 @@ class SolverAIA(SubSolver):
             print("RandomSeed is:", self.RandomSeed)
             print("Best solution is:", min(self.CostHistory))
         
-
     ## 绘图
     def plot(self):
         plt.plot(np.arange(len(self.CostHistory)), self.CostHistory)
         plt.show()
+        
+        self.getGanttData(self.best_solution)
+        fig, ax = plt.subplots()
+        # 不同工件的颜色
+        color = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple',
+                 'tab:brown', 'tab:pink','tab:gray', 'tab:olive', 'tab:cyan']
+        ax.set_xlim(0, 1300)
+        y_para1 = []
+        y_para2 = []
+        for machine_index in range(self.Machine_num):
+            
+            y_para1.append(15*(machine_index + 1))
+            y_para2.append('Machine' + str(machine_index))
+            
+            x_para1 = []
+            x_para2 = (15*(machine_index + 1) - 5, 10)
+            x_para3 = []
+            # time_interval 是增量的形式
+            for time_interval, work_piece_id in self.WorkOnMachines[machine_index]:
+                print("time_interval:",time_interval)
+                x_para1.append(time_interval)
+                x_para3.append(color[work_piece_id])
+                #ax.broken_barh([time_interval], (15*(machine_index + 1) - 5, 10), facecolors=(color[work_piece_id]),
+                #               edgecolor='black', linewidth=1)
+
+            x_para3 = tuple(x_para3)
+            print("x_para1:", x_para1)
+            print("x_para2:", x_para2)
+            print("x_para3:", x_para3)
+            ax.broken_barh(x_para1, x_para2, facecolors=x_para3,
+                           edgecolor='black', linewidth=1)
+        #print("self.WorkOnMachines:", self.WorkOnMachines)
+        ax.set_yticks(y_para1, labels=y_para2)
+        
+        # 更改y轴记号标签
+        #ax.set_yticks([15, 25], labels=['A01', 'A02'])
+        
+        # 设置条形数据
+        #ax.broken_barh([(110, 30), (150, 10)], (10, 9), facecolors='tab:blue')
+        
+        #ax.broken_barh([(10, 50), (100, 20), (130, 10)], (20, 9), facecolors=(color[0], color[1], color[2]))
+        plt.show()
+
+    def getGanttData(self, one_solution):
+        # 每个工件进行到第几道工序以及当前每个机器的结束工作时间
+            self.WorkOnMachines = [[]] * self.Machine_num
+            
+
+            processed_id = [0] * self.WorkPiece_num
+            machineWorkTime = [0] * self.Machine_num
+            
+            # 全部工件的每到工序的开始结束时间
+            startTime = [[0 for _ in range(self.Machine_num)] for _ in range(self.WorkPiece_num)]
+            endTime = [[0 for _ in range(self.Machine_num)] for _ in range(self.WorkPiece_num)]
+            
+            final_time = 0
+            
+            for wId in one_solution:
+                # 依据信息，得到当前的需考虑的工件id
+                # 依据当前工件的工序得到处理的机器以及耗时
+                pId = processed_id[wId]
+                processed_id[wId] += 1
+                mId = self.MachineRequired_matrix[wId][pId]
+                t = self.TimeCost_matrix[wId][mId]
+                if pId == 0:
+                    startTime[wId][pId] = machineWorkTime[mId]
+                else:
+                    startTime[wId][pId] = max(endTime[wId][pId - 1], machineWorkTime[mId])
+                machineWorkTime[mId] = startTime[wId][pId] + t
+                endTime[wId][pId] = machineWorkTime[mId]
+                final_time = max(final_time, machineWorkTime[mId])
+
+                # 如果某一机器还没添加时间节点及对应工件号，则初始化
+                if(self.WorkOnMachines[mId] == []):
+                    self.WorkOnMachines[mId] = [ ((startTime[wId][pId],endTime[wId][pId]-startTime[wId][pId]), wId) ]
+                else:
+                    self.WorkOnMachines[mId].append( ((startTime[wId][pId],endTime[wId][pId]-startTime[wId][pId]), wId) )
 
 class Solver:
     def __init__(self):
@@ -654,8 +943,9 @@ class Solver:
         self.MachineRequired_matrix = sch
 
     def setSolvers(self, solvers, RandomSeed = None):
+
         if(solvers == 'PSO'):
-            self.SubSolver = SolverPSO(self.WorkPiece_num, self.Process_num, self.TimeCost_matrix, self.MachineRequired_matrix)
+            self.SubSolver = SolverPSO(self.WorkPiece_num, self.Process_num, self.TimeCost_matrix, self.MachineRequired_matrix, RandomSeed)
         elif(solvers == 'GA'):
             self.SubSolver = SolverGA(self.WorkPiece_num, self.Process_num, self.TimeCost_matrix, self.MachineRequired_matrix, RandomSeed)
         elif(solvers == 'AIA'):
@@ -668,6 +958,14 @@ class Solver:
         self.SubSolver.plot()
         
 if __name__ == "__main__":
+    
+    use_subsolver = 'GA'
+
+    solver = Solver()
+    solver.readFile('new_data.txt')
+    solver.setSolvers(use_subsolver)
+    solver.solve()
+
     # 使用PSO
     #solver = Solver()
     #solver.readFile('data.txt')
@@ -681,7 +979,7 @@ if __name__ == "__main__":
     #solver.solve()
 
     # 使用AIA
-    solver = Solver()
-    solver.readFile('data.txt')
-    solver.setSolvers('AIA')
-    solver.solve()
+    #solver = Solver()
+    #solver.readFile('data.txt')
+    #solver.setSolvers('AIA')
+    #solver.solve()
