@@ -19,7 +19,7 @@ class SubSolver:
         # 记录最优解, 用于绘制甘特图
         self.best_cost = inf
         self.best_solution = None
-
+        self.worst_solution = None
         pass
 
     ## 特定算法自身数据的初始化
@@ -54,6 +54,8 @@ class SolverGA(SubSolver):
         # 记录最优解, 用于绘制甘特图
         self.best_cost = inf
         self.best_solution = None
+        # 记录最差解，用于绘制甘特图
+        self.worst_solution = None
 
         # 设定随机种子，保证实验可重复性
         if(self.RandomSeed != None):
@@ -74,7 +76,8 @@ class SolverGA(SubSolver):
         # 初始化种群及适应度
         self.Fitness = np.zeros(self.Population_num)
         self.Population = self.populationInit()
-        
+
+        self.worst_solution = self.Population[np.argmax(self.Fitness)]
 
         # 用于绘制曲线图
         self.CostHistory = []
@@ -247,48 +250,14 @@ class SolverGA(SubSolver):
     def plot(self):
         plt.plot(np.arange(len(self.CostHistory)), self.CostHistory)
         plt.show()
-        
-        self.getGanttData(self.best_solution)
-        fig, ax = plt.subplots()
-        # 不同工件的颜色
-        color = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple',
-                 'tab:brown', 'tab:pink','tab:gray', 'tab:olive', 'tab:cyan']
-        ax.set_xlim(0, 1300)
-        y_para1 = []
-        y_para2 = []
-        for machine_index in range(self.Machine_num):
-            
-            y_para1.append(15*(machine_index + 1))
-            y_para2.append('Machine' + str(machine_index))
-            
-            x_para1 = []
-            x_para2 = (15*(machine_index + 1) - 5, 10)
-            x_para3 = []
-            # time_interval 是增量的形式
-            for time_interval, work_piece_id in self.WorkOnMachines[machine_index]:
-                print("time_interval:",time_interval)
-                x_para1.append(time_interval)
-                x_para3.append(color[work_piece_id])
-                #ax.broken_barh([time_interval], (15*(machine_index + 1) - 5, 10), facecolors=(color[work_piece_id]),
-                #               edgecolor='black', linewidth=1)
 
-            x_para3 = tuple(x_para3)
-            print("x_para1:", x_para1)
-            print("x_para2:", x_para2)
-            print("x_para3:", x_para3)
-            ax.broken_barh(x_para1, x_para2, facecolors=x_para3,
-                           edgecolor='black', linewidth=1)
-        #print("self.WorkOnMachines:", self.WorkOnMachines)
-        ax.set_yticks(y_para1, labels=y_para2)
-        
-        # 更改y轴记号标签
-        #ax.set_yticks([15, 25], labels=['A01', 'A02'])
-        
-        # 设置条形数据
-        #ax.broken_barh([(110, 30), (150, 10)], (10, 9), facecolors='tab:blue')
-        
-        #ax.broken_barh([(10, 50), (100, 20), (130, 10)], (20, 9), facecolors=(color[0], color[1], color[2]))
-        plt.show()
+        # 绘制最优图
+        self.getGanttData(self.worst_solution)
+        self.plotGantt()
+
+        # 绘制最优图
+        self.getGanttData(self.best_solution)
+        self.plotGantt()
 
     def getGanttData(self, one_solution):
         # 每个工件进行到第几道工序以及当前每个机器的结束工作时间
@@ -325,6 +294,40 @@ class SolverGA(SubSolver):
                 else:
                     self.WorkOnMachines[mId].append( ((startTime[wId][pId],endTime[wId][pId]-startTime[wId][pId]), wId) )
 
+    def plotGantt(self):
+        fig, ax = plt.subplots()
+        # 不同工件的颜色
+        color = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple',
+                 'tab:brown', 'tab:pink','tab:gray', 'tab:olive', 'tab:cyan']
+        ax.set_xlim(0, 1500)
+        y_para1 = []
+        y_para2 = []
+        for machine_index in range(self.Machine_num):
+            
+            y_para1.append(15*(machine_index + 1))
+            y_para2.append('Machine' + str(machine_index))
+            
+            x_para1 = []
+            x_para2 = (15*(machine_index + 1) - 5, 10)
+            x_para3 = []
+            # time_interval 是增量的形式
+            for time_interval, work_piece_id in self.WorkOnMachines[machine_index]:
+                #print("time_interval:",time_interval)
+                x_para1.append(time_interval)
+                x_para3.append(color[work_piece_id])
+                #ax.broken_barh([time_interval], (15*(machine_index + 1) - 5, 10), facecolors=(color[work_piece_id]),
+                #               edgecolor='black', linewidth=1)
+
+            x_para3 = tuple(x_para3)
+            #print("x_para1:", x_para1)
+            #print("x_para2:", x_para2)
+            #print("x_para3:", x_para3)
+            ax.broken_barh(x_para1, x_para2, facecolors=x_para3,
+                           edgecolor='black', linewidth=1)
+        #print("self.WorkOnMachines:", self.WorkOnMachines)
+        ax.set_yticks(y_para1, labels=y_para2)
+        plt.show()
+
 ###PSO算法求解###
 class SolverPSO(SubSolver):
     def __init__(self, WorkPiece_num, Process_num, TimeCost_matrix, MachineRequired_matrix, RandomSeed = None):
@@ -340,14 +343,16 @@ class SolverPSO(SubSolver):
         # 记录最优解, 用于绘制甘特图
         self.best_cost = inf
         self.best_solution = None
-
+        # 记录最差解，用于绘制甘特图
+        self.worst_solution = None
+        
         # 设定随机种子，保证实验可重复性
         if(self.RandomSeed != None):
             random.seed(self.RandomSeed)
             np.random.seed(self.RandomSeed)
 
         # 算法可调节参数，迭代次数、粒子群粒子数量、随机交换对的数量、学习率、最大交换数量、随机种子（保证可重复性）
-        self.args = {'Iteration': 500, 'Particle_num': 100, 'RandomPair_num': 5, 'alpha': 0.45, 'MaxPair_num': 10, 'RandomSeed': 100, }
+        self.args = {'Iteration': 1000, 'Particle_num': 100, 'RandomPair_num': 5, 'alpha': 0.45, 'MaxPair_num': 10, 'RandomSeed': 100, }
 
         # 初始化参数
         self.init()
@@ -355,6 +360,8 @@ class SolverPSO(SubSolver):
     def init(self):
         # 初始化粒子群
         self.Particles = self.particlesInit(self.WorkPiece_num, self.Process_num, self.args['Particle_num'])
+        self.worst_solution = self.Particles[0]
+        
         # 随机速度
         self.RandomVelocity = [self.randomPairInit(self.WorkPiece_num * self.Process_num, self.args['RandomPair_num']) for _ in range(self.args['Particle_num'])]
         
@@ -503,47 +510,13 @@ class SolverPSO(SubSolver):
         plt.plot(np.arange(len(self.CostHistory)), self.CostHistory)
         plt.show()
 
-        self.getGanttData(self.gbest_solution)
-        fig, ax = plt.subplots()
-        # 不同工件的颜色
-        color = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple',
-                 'tab:brown', 'tab:pink','tab:gray', 'tab:olive', 'tab:cyan']
-        ax.set_xlim(0, 1300)
-        y_para1 = []
-        y_para2 = []
-        for machine_index in range(self.Machine_num):
-            
-            y_para1.append(15*(machine_index + 1))
-            y_para2.append('Machine' + str(machine_index))
-            
-            x_para1 = []
-            x_para2 = (15*(machine_index + 1) - 5, 10)
-            x_para3 = []
-            # time_interval 是增量的形式
-            for time_interval, work_piece_id in self.WorkOnMachines[machine_index]:
-                #print("time_interval:",time_interval)
-                x_para1.append(time_interval)
-                x_para3.append(color[work_piece_id])
-                #ax.broken_barh([time_interval], (15*(machine_index + 1) - 5, 10), facecolors=(color[work_piece_id]),
-                #               edgecolor='black', linewidth=1)
+        # 绘制最优图
+        self.getGanttData(self.worst_solution)
+        self.plotGantt()
 
-            x_para3 = tuple(x_para3)
-            #print("x_para1:", x_para1)
-            #print("x_para2:", x_para2)
-            #print("x_para3:", x_para3)
-            ax.broken_barh(x_para1, x_para2, facecolors=x_para3,
-                           edgecolor='black', linewidth=1)
-        #print("self.WorkOnMachines:", self.WorkOnMachines)
-        ax.set_yticks(y_para1, labels=y_para2)
-        
-        # 更改y轴记号标签
-        #ax.set_yticks([15, 25], labels=['A01', 'A02'])
-        
-        # 设置条形数据
-        #ax.broken_barh([(110, 30), (150, 10)], (10, 9), facecolors='tab:blue')
-        
-        #ax.broken_barh([(10, 50), (100, 20), (130, 10)], (20, 9), facecolors=(color[0], color[1], color[2]))
-        plt.show()
+        # 绘制最优图
+        self.getGanttData(self.best_solution)
+        self.plotGantt()
 
     def getGanttData(self, one_solution):
         # 每个工件进行到第几道工序以及当前每个机器的结束工作时间
@@ -580,6 +553,39 @@ class SolverPSO(SubSolver):
                 else:
                     self.WorkOnMachines[mId].append( ((startTime[wId][pId],endTime[wId][pId]-startTime[wId][pId]), wId) )
 
+    def plotGantt(self):
+        fig, ax = plt.subplots()
+        # 不同工件的颜色
+        color = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple',
+                 'tab:brown', 'tab:pink','tab:gray', 'tab:olive', 'tab:cyan']
+        ax.set_xlim(0, 1500)
+        y_para1 = []
+        y_para2 = []
+        for machine_index in range(self.Machine_num):
+            
+            y_para1.append(15*(machine_index + 1))
+            y_para2.append('Machine' + str(machine_index))
+            
+            x_para1 = []
+            x_para2 = (15*(machine_index + 1) - 5, 10)
+            x_para3 = []
+            # time_interval 是增量的形式
+            for time_interval, work_piece_id in self.WorkOnMachines[machine_index]:
+                #print("time_interval:",time_interval)
+                x_para1.append(time_interval)
+                x_para3.append(color[work_piece_id])
+                #ax.broken_barh([time_interval], (15*(machine_index + 1) - 5, 10), facecolors=(color[work_piece_id]),
+                #               edgecolor='black', linewidth=1)
+
+            x_para3 = tuple(x_para3)
+            #print("x_para1:", x_para1)
+            #print("x_para2:", x_para2)
+            #print("x_para3:", x_para3)
+            ax.broken_barh(x_para1, x_para2, facecolors=x_para3,
+                           edgecolor='black', linewidth=1)
+        #print("self.WorkOnMachines:", self.WorkOnMachines)
+        ax.set_yticks(y_para1, labels=y_para2)
+        plt.show()
 ###AIA算法求解###
 class SolverAIA(SubSolver):
     def __init__(self, WorkPiece_num, Process_num, TimeCost_matrix, MachineRequired_matrix, RandomSeed = None):
@@ -591,10 +597,12 @@ class SolverAIA(SubSolver):
         self.MachineRequired_matrix = MachineRequired_matrix
 
         self.RandomSeed = RandomSeed
-        
+
         # 记录最优解, 用于绘制甘特图
         self.best_cost = inf
         self.best_solution = None
+        # 记录最差解，用于绘制甘特图
+        self.worst_solution = None
 
         # 设定随机种子，保证实验可重复性
         if(self.RandomSeed != None):
@@ -621,6 +629,8 @@ class SolverAIA(SubSolver):
         self.Fitness = np.zeros(self.Population_num)
         self.Population = self.populationInit()
         
+        self.worst_solution = self.Population[np.argmax(self.Fitness)]
+
         # 用于绘制曲线图
         self.CostHistory = []
 
@@ -824,47 +834,13 @@ class SolverAIA(SubSolver):
         plt.plot(np.arange(len(self.CostHistory)), self.CostHistory)
         plt.show()
         
-        self.getGanttData(self.best_solution)
-        fig, ax = plt.subplots()
-        # 不同工件的颜色
-        color = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple',
-                 'tab:brown', 'tab:pink','tab:gray', 'tab:olive', 'tab:cyan']
-        ax.set_xlim(0, 1300)
-        y_para1 = []
-        y_para2 = []
-        for machine_index in range(self.Machine_num):
-            
-            y_para1.append(15*(machine_index + 1))
-            y_para2.append('Machine' + str(machine_index))
-            
-            x_para1 = []
-            x_para2 = (15*(machine_index + 1) - 5, 10)
-            x_para3 = []
-            # time_interval 是增量的形式
-            for time_interval, work_piece_id in self.WorkOnMachines[machine_index]:
-                print("time_interval:",time_interval)
-                x_para1.append(time_interval)
-                x_para3.append(color[work_piece_id])
-                #ax.broken_barh([time_interval], (15*(machine_index + 1) - 5, 10), facecolors=(color[work_piece_id]),
-                #               edgecolor='black', linewidth=1)
+        # 绘制最优图
+        self.getGanttData(self.worst_solution)
+        self.plotGantt()
 
-            x_para3 = tuple(x_para3)
-            print("x_para1:", x_para1)
-            print("x_para2:", x_para2)
-            print("x_para3:", x_para3)
-            ax.broken_barh(x_para1, x_para2, facecolors=x_para3,
-                           edgecolor='black', linewidth=1)
-        #print("self.WorkOnMachines:", self.WorkOnMachines)
-        ax.set_yticks(y_para1, labels=y_para2)
-        
-        # 更改y轴记号标签
-        #ax.set_yticks([15, 25], labels=['A01', 'A02'])
-        
-        # 设置条形数据
-        #ax.broken_barh([(110, 30), (150, 10)], (10, 9), facecolors='tab:blue')
-        
-        #ax.broken_barh([(10, 50), (100, 20), (130, 10)], (20, 9), facecolors=(color[0], color[1], color[2]))
-        plt.show()
+        # 绘制最优图
+        self.getGanttData(self.best_solution)
+        self.plotGantt()
 
     def getGanttData(self, one_solution):
         # 每个工件进行到第几道工序以及当前每个机器的结束工作时间
@@ -900,7 +876,40 @@ class SolverAIA(SubSolver):
                     self.WorkOnMachines[mId] = [ ((startTime[wId][pId],endTime[wId][pId]-startTime[wId][pId]), wId) ]
                 else:
                     self.WorkOnMachines[mId].append( ((startTime[wId][pId],endTime[wId][pId]-startTime[wId][pId]), wId) )
+    
+    def plotGantt(self):
+        fig, ax = plt.subplots()
+        # 不同工件的颜色
+        color = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple',
+                 'tab:brown', 'tab:pink','tab:gray', 'tab:olive', 'tab:cyan']
+        ax.set_xlim(0, 1500)
+        y_para1 = []
+        y_para2 = []
+        for machine_index in range(self.Machine_num):
+            
+            y_para1.append(15*(machine_index + 1))
+            y_para2.append('Machine' + str(machine_index))
+            
+            x_para1 = []
+            x_para2 = (15*(machine_index + 1) - 5, 10)
+            x_para3 = []
+            # time_interval 是增量的形式
+            for time_interval, work_piece_id in self.WorkOnMachines[machine_index]:
+                #print("time_interval:",time_interval)
+                x_para1.append(time_interval)
+                x_para3.append(color[work_piece_id])
+                #ax.broken_barh([time_interval], (15*(machine_index + 1) - 5, 10), facecolors=(color[work_piece_id]),
+                #               edgecolor='black', linewidth=1)
 
+            x_para3 = tuple(x_para3)
+            #print("x_para1:", x_para1)
+            #print("x_para2:", x_para2)
+            #print("x_para3:", x_para3)
+            ax.broken_barh(x_para1, x_para2, facecolors=x_para3,
+                           edgecolor='black', linewidth=1)
+        #print("self.WorkOnMachines:", self.WorkOnMachines)
+        ax.set_yticks(y_para1, labels=y_para2)
+        plt.show()
 class Solver:
     def __init__(self):
         self.WorkPiece_num = 0
@@ -959,7 +968,7 @@ class Solver:
         
 if __name__ == "__main__":
     
-    use_subsolver = 'GA'
+    use_subsolver = 'PSO'
 
     solver = Solver()
     solver.readFile('new_data.txt')
