@@ -65,8 +65,8 @@ class SolverGA(SubSolver):
         # 算法可调节参数, 变异率，交叉率
         self.Iteration = 1000
         self.Population_num = 100
-        self.MutationRate = 0.1
-        self.CrossoverRate = 0.65
+        self.MutationRate = 0.50
+        self.CrossoverRate = 0.85
               
     ## 特定算法自身数据的初始化
     def init(self):
@@ -249,7 +249,6 @@ class SolverGA(SubSolver):
     ## 绘图
     def plot(self):
         plt.plot(np.arange(len(self.CostHistory)), self.CostHistory)
-        plt.show()
 
         # 绘制最优图
         self.getGanttData(self.worst_solution)
@@ -258,7 +257,7 @@ class SolverGA(SubSolver):
         # 绘制最优图
         self.getGanttData(self.best_solution)
         self.plotGantt()
-
+        plt.show()
     def getGanttData(self, one_solution):
         # 每个工件进行到第几道工序以及当前每个机器的结束工作时间
             self.WorkOnMachines = [[]] * self.Machine_num
@@ -299,7 +298,7 @@ class SolverGA(SubSolver):
         # 不同工件的颜色
         color = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple',
                  'tab:brown', 'tab:pink','tab:gray', 'tab:olive', 'tab:cyan']
-        ax.set_xlim(0, 1500)
+        ax.set_xlim(0, 1400)
         y_para1 = []
         y_para2 = []
         for machine_index in range(self.Machine_num):
@@ -326,8 +325,7 @@ class SolverGA(SubSolver):
                            edgecolor='black', linewidth=1)
         #print("self.WorkOnMachines:", self.WorkOnMachines)
         ax.set_yticks(y_para1, labels=y_para2)
-        plt.show()
-
+        
 ###PSO算法求解###
 class SolverPSO(SubSolver):
     def __init__(self, WorkPiece_num, Process_num, TimeCost_matrix, MachineRequired_matrix, RandomSeed = None):
@@ -352,7 +350,7 @@ class SolverPSO(SubSolver):
             np.random.seed(self.RandomSeed)
 
         # 算法可调节参数，迭代次数、粒子群粒子数量、随机交换对的数量、学习率、最大交换数量、随机种子（保证可重复性）
-        self.args = {'Iteration': 1000, 'Particle_num': 100, 'RandomPair_num': 5, 'alpha': 0.45, 'MaxPair_num': 10, 'RandomSeed': 100, }
+        self.args = {'Iteration': 1000, 'Particle_num': 100, 'RandomPair_num': 5, 'alpha': 0.2, 'beta':0.4, 'gamma':0.2, 'MaxPair_num': 100, 'RandomSeed': 100}
 
         # 初始化参数
         self.init()
@@ -361,7 +359,8 @@ class SolverPSO(SubSolver):
         # 初始化粒子群
         self.Particles = self.particlesInit(self.WorkPiece_num, self.Process_num, self.args['Particle_num'])
         self.worst_solution = self.Particles[0]
-        
+        self.LastVelocity = [[(0,0)] for _ in range(self.args['Particle_num'])]
+
         # 随机速度
         self.RandomVelocity = [self.randomPairInit(self.WorkPiece_num * self.Process_num, self.args['RandomPair_num']) for _ in range(self.args['Particle_num'])]
         
@@ -427,7 +426,7 @@ class SolverPSO(SubSolver):
         # 储存并输出
         self.CostHistory.append(self.gbest)
         if(gbest < self.best_cost):
-            self.best_solution = self.Particles[gbest_idx]
+            self.best_solution = deepcopy(self.pbest_solution[gbest_idx])
             self.best_cost = gbest
 
         # 更新粒子群
@@ -436,12 +435,21 @@ class SolverPSO(SubSolver):
             gbest_delta = self.getswitchpairs(self.gbest_solution, particle, self.WorkPiece_num)
             pbest_delta = self.getswitchpairs(self.pbest_solution[particle_index], particle, self.WorkPiece_num)
             pairs = []
-            if random.random() < self.args['alpha']:
-                pairs = pbest_delta
-            else:
-                pairs = gbest_delta
-            vec = self.RandomVelocity[particle_index] + pairs
+
+            # 分别从之前速度，粒子最优和全局最优三个速度中选一部分执行
+            pairs = pairs + random.sample(self.LastVelocity[particle_index], int(len(self.LastVelocity[particle_index])*self.args['alpha']))
+            pairs = pairs + random.sample(pbest_delta, int(len(pbest_delta)*self.args['beta']))
+            pairs = pairs + random.sample(gbest_delta, int(len(gbest_delta)*self.args['gamma']))
+            #if random.random() < self.args['alpha']:
+            #    pairs = pbest_delta
+            #else:
+            #    pairs = gbest_delta
             
+            # 加上一个随机速度，避免粒子聚集
+            vec = self.RandomVelocity[particle_index] + pairs
+            #vec = pairs
+
+            self.LastVelocity[particle_index] = vec
             if len(vec) > self.args['MaxPair_num']:
                 vec = random.sample(vec, self.args['MaxPair_num'])
                 self.RandomVelocity[particle_index] = vec
@@ -505,10 +513,11 @@ class SolverPSO(SubSolver):
             print("Iteration", iter, ":", self.best_cost)
             self.update()
 
+        print("self.best_solution:", self.best_solution) 
+
     ## 绘图
     def plot(self):
         plt.plot(np.arange(len(self.CostHistory)), self.CostHistory)
-        plt.show()
 
         # 绘制最优图
         self.getGanttData(self.worst_solution)
@@ -518,6 +527,7 @@ class SolverPSO(SubSolver):
         self.getGanttData(self.best_solution)
         self.plotGantt()
 
+        plt.show()
     def getGanttData(self, one_solution):
         # 每个工件进行到第几道工序以及当前每个机器的结束工作时间
             self.WorkOnMachines = [[]] * self.Machine_num
@@ -585,7 +595,7 @@ class SolverPSO(SubSolver):
                            edgecolor='black', linewidth=1)
         #print("self.WorkOnMachines:", self.WorkOnMachines)
         ax.set_yticks(y_para1, labels=y_para2)
-        plt.show()
+
 ###AIA算法求解###
 class SolverAIA(SubSolver):
     def __init__(self, WorkPiece_num, Process_num, TimeCost_matrix, MachineRequired_matrix, RandomSeed = None):
@@ -614,10 +624,10 @@ class SolverAIA(SubSolver):
         
         self.Population_num = 100
         
-        self.SwitchRate = 0.8
-        self.ShiftRate = 0.8
-        self.InverseRate = 0.8
-        self.RegroupRate = 0.8
+        self.SwitchRate = 0.25
+        self.ShiftRate = 0.25
+        self.InverseRate = 0.25
+        self.RegroupRate = 0.25
         
         
     ## 特定算法自身数据的初始化
@@ -629,7 +639,7 @@ class SolverAIA(SubSolver):
         self.Fitness = np.zeros(self.Population_num)
         self.Population = self.populationInit()
         
-        self.worst_solution = self.Population[np.argmax(self.Fitness)]
+        self.worst_solution = self.Population[0]
 
         # 用于绘制曲线图
         self.CostHistory = []
@@ -803,9 +813,11 @@ class SolverAIA(SubSolver):
                 save_Population.append(NewPopulation[chossed_index[new_population_index]-self.Population_num])
             save_fitness.append(temp_fitness[chossed_index[new_population_index]])
         
-        self.Population = save_Population
-        self.Fitness = save_fitness
+        self.Population = deepcopy(save_Population)
+        self.Fitness = deepcopy(save_fitness)
 
+        self.best_cost = self.Fitness[0]
+        self.best_solution = self.Population[0]
     ## 迭代
     def update(self):
         new_population = self.generateNewAntiBodys()
@@ -828,7 +840,8 @@ class SolverAIA(SubSolver):
         if(self.RandomSeed != None):
             print("RandomSeed is:", self.RandomSeed)
             print("Best solution is:", min(self.CostHistory))
-        
+        11
+        print("self.best_solution:", self.best_solution) 
     ## 绘图
     def plot(self):
         plt.plot(np.arange(len(self.CostHistory)), self.CostHistory)
@@ -910,6 +923,7 @@ class SolverAIA(SubSolver):
         #print("self.WorkOnMachines:", self.WorkOnMachines)
         ax.set_yticks(y_para1, labels=y_para2)
         plt.show()
+
 class Solver:
     def __init__(self):
         self.WorkPiece_num = 0
@@ -968,13 +982,23 @@ class Solver:
         
 if __name__ == "__main__":
     
-    use_subsolver = 'PSO'
+    use_subsolver = 'GA'
 
     solver = Solver()
     solver.readFile('new_data.txt')
     solver.setSolvers(use_subsolver)
     solver.solve()
 
+
+
+    #solver.SubSolver.getGanttData(
+    #    [8, 2, 6, 5, 3, 1, 2, 9, 2, 3, 0, 0, 1, 7, 3, 0, 5, 8, 6, 0, 4, 2, 0, 1, 9,  
+    #    5, 2, 4, 3, 6, 5, 7, 4, 3, 8, 2, 0, 9, 1, 5, 4, 0, 6, 9, 1, 6, 7, 8, 0, 9, 
+    #    2, 4, 8, 5, 4, 6, 6, 7, 0, 3, 5, 5, 9 ,4, 7, 7, 3, 7, 9, 9, 1, 3, 8, 8, 0, 
+    #    2, 5, 2, 7, 6, 7, 1, 9, 6, 4, 4, 8, 1, 2, 6, 5, 3, 8, 1, 9, 4, 1, 3, 8, 7]
+    #    )
+    #solver.SubSolver.plotGantt()
+    #plt.show()
     # 使用PSO
     #solver = Solver()
     #solver.readFile('data.txt')
