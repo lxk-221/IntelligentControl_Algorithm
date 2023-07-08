@@ -19,12 +19,12 @@
 某一车间共有10台机器，1台机器负责1道加工步骤，这10台机器需要完成10个工件的加工；每个工件的加工都有10个加工步骤，不同工件加工步骤的顺序不完全相同且顺序不能改变；每个加工步骤都有 对应的机器花费一定的时间完成。你需要确定不同工件在不同机器上的加工顺序，以使得全部工件完成加工的总时长最小。
 
 ## 报告示例
-https://github.com/lxk-221/IntelligentControl_Algorithm/blob/main/report/%E6%9D%8E%E6%98%AB%E5%9D%A4_3122354040_%E9%80%89%E9%A2%98%E4%B8%80_Page1.png
-https://github.com/lxk-221/IntelligentControl_Algorithm/blob/main/report/%E6%9D%8E%E6%98%AB%E5%9D%A4_3122354040_%E9%80%89%E9%A2%98%E4%B8%80_Page2.png
-https://github.com/lxk-221/IntelligentControl_Algorithm/blob/main/report/%E6%9D%8E%E6%98%AB%E5%9D%A4_3122354040_%E9%80%89%E9%A2%98%E4%B8%80_Page3.png
-https://github.com/lxk-221/IntelligentControl_Algorithm/blob/main/report/%E6%9D%8E%E6%98%AB%E5%9D%A4_3122354040_%E9%80%89%E9%A2%98%E4%B8%80_Page4.png
-https://github.com/lxk-221/IntelligentControl_Algorithm/blob/main/report/%E6%9D%8E%E6%98%AB%E5%9D%A4_3122354040_%E9%80%89%E9%A2%98%E4%B8%80_Page5.png
-https://github.com/lxk-221/IntelligentControl_Algorithm/blob/main/report/%E6%9D%8E%E6%98%AB%E5%9D%A4_3122354040_%E9%80%89%E9%A2%98%E4%B8%80_Page6.png
-https://github.com/lxk-221/IntelligentControl_Algorithm/blob/main/report/%E6%9D%8E%E6%98%AB%E5%9D%A4_3122354040_%E9%80%89%E9%A2%98%E4%B8%80_Page7.png
-https://github.com/lxk-221/IntelligentControl_Algorithm/blob/main/report/%E6%9D%8E%E6%98%AB%E5%9D%A4_3122354040_%E9%80%89%E9%A2%98%E4%B8%80_Page8.png
-https://github.com/lxk-221/IntelligentControl_Algorithm/blob/main/report/%E6%9D%8E%E6%98%AB%E5%9D%A4_3122354040_%E9%80%89%E9%A2%98%E4%B8%80_Page9.png
+![](https://github.com/lxk-221/IntelligentControl_Algorithm/blob/main/report/%E6%9D%8E%E6%98%AB%E5%9D%A4_3122354040_%E9%80%89%E9%A2%98%E4%B8%80_Page1.png)
+![](https://github.com/lxk-221/IntelligentControl_Algorithm/blob/main/report/%E6%9D%8E%E6%98%AB%E5%9D%A4_3122354040_%E9%80%89%E9%A2%98%E4%B8%80_Page2.png)
+![](https://github.com/lxk-221/IntelligentControl_Algorithm/blob/main/report/%E6%9D%8E%E6%98%AB%E5%9D%A4_3122354040_%E9%80%89%E9%A2%98%E4%B8%80_Page3.png)
+![](https://github.com/lxk-221/IntelligentControl_Algorithm/blob/main/report/%E6%9D%8E%E6%98%AB%E5%9D%A4_3122354040_%E9%80%89%E9%A2%98%E4%B8%80_Page4.png)
+![](https://github.com/lxk-221/IntelligentControl_Algorithm/blob/main/report/%E6%9D%8E%E6%98%AB%E5%9D%A4_3122354040_%E9%80%89%E9%A2%98%E4%B8%80_Page5.png)
+![](https://github.com/lxk-221/IntelligentControl_Algorithm/blob/main/report/%E6%9D%8E%E6%98%AB%E5%9D%A4_3122354040_%E9%80%89%E9%A2%98%E4%B8%80_Page6.png)
+![](https://github.com/lxk-221/IntelligentControl_Algorithm/blob/main/report/%E6%9D%8E%E6%98%AB%E5%9D%A4_3122354040_%E9%80%89%E9%A2%98%E4%B8%80_Page7.png)
+![](https://github.com/lxk-221/IntelligentControl_Algorithm/blob/main/report/%E6%9D%8E%E6%98%AB%E5%9D%A4_3122354040_%E9%80%89%E9%A2%98%E4%B8%80_Page8.png)
+![](https://github.com/lxk-221/IntelligentControl_Algorithm/blob/main/report/%E6%9D%8E%E6%98%AB%E5%9D%A4_3122354040_%E9%80%89%E9%A2%98%E4%B8%80_Page9.png)
